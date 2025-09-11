@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bond System App</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Load Transformers.js UMD version -->
+<script src="https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Bond System ⚡ AI Edition</h1>
+    <nav>
+      <button onclick="showPage('home')">Home</button>
+      <button onclick="showPage('about')">About</button>
+      <button onclick="showPage('estimator')">Bond Estimator</button>
+      <button onclick="showPage('prediction')">Future Prediction</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="home" class="page active">
+      <h2>Welcome</h2>
+      <p>Explore the Bond System – now AI-powered in-browser!</p>
+    </section>
+
+    <section id="about" class="page">
+      <h2>About</h2>
+      <p>The Bond System quantifies relationships from -5 to 10 and has a Loneliness scale (1-10). Two units: standardised (o) and linear (a).</p>
+    </section>
+
+    <section id="estimator" class="page">
+      <h2>Bond Estimator</h2>
+      <p>Write about someone to estimate your bond:</p>
+      <textarea id="estimatorInput" placeholder="Write about them..."></textarea>
+      <button onclick="estimateBond()">Estimate Bond</button>
+      <p id="estimatorOutput"></p>
+    </section>
+
+    <section id="prediction" class="page">
+      <h2>Future Bond Prediction</h2>
+      <p>Input your bond and context to see how it might evolve:</p>
+      <input type="number" id="bondLevel" placeholder="Bond level (-5 to 10)">
+      <textarea id="predictionInput" placeholder="Write context here..."></textarea>
+      <button onclick="predictBond()">Predict</button>
+      <p id="predictionOutput"></p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

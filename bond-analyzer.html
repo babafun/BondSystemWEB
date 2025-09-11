@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bond Analyzer — Lightning2580</title>
+<style>
+  :root{
+    --bg:#0a0b0f;
+    --card: rgba(255,255,255,.06);
+    --glass: rgba(255,255,255,.08);
+    --text:#e7e9ee;
+    --muted:#a6adbb;
+    --accent:#7afcff;
+    --accent-2:#c799ff;
+    --radius:20px;
+  }
+  body{
+    margin:0; font:16px/1.5 system-ui, Segoe UI, Inter, Roboto, Arial;
+    color:var(--text); background:var(--bg); display:flex; flex-direction:column; min-height:100vh;
+  }
+  header{display:flex; justify-content:center; gap:20px; padding:12px; background:rgba(255,255,255,.05); border-bottom:1px solid rgba(255,255,255,.08);}
+  header a{color:var(--accent); text-decoration:none; font-weight:600;}
+  .frame{flex:1; max-width:900px; margin:20px auto; display:flex; flex-direction:column; gap:20px;}
+  textarea{width:100%; min-height:140px; background:var(--card); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:12px; color:var(--text); resize:none; font-family:system-ui, sans-serif;}
+  button{padding:10px 16px; border-radius:14px; border:none; background:var(--accent); color:#0a0b0f; cursor:pointer; font-weight:600; transition:0.2s; }
+  button:hover{filter:brightness(1.1);}
+  .result-card{background:var(--glass); border:1px solid rgba(255,255,255,.08); border-radius:var(--radius); padding:16px; display:flex; flex-direction:column; gap:12px;}
+  .bar-container{height:16px; width:100%; background:rgba(255,255,255,.05); border-radius:999px; overflow:hidden;}
+  .bar{height:100%; width:0%; background:linear-gradient(90deg, var(--accent), var(--accent-2)); transition:width 0.4s ease;}
+  .label{font-size:14px; color:var(--muted);}
+  .highlights{display:flex; gap:6px; flex-wrap:wrap;}
+  .highlight{background:rgba(122,252,255,.2); padding:4px 8px; border-radius:12px; font-size:12px;}
+  pre{white-space:pre-wrap; word-break:break-word; font-size:12px; color:var(--muted);}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html">Bond Insight</a>
+  <a href="bond-analyzer.html">Bond Analyzer</a>
+</header>
+
+<div class="frame">
+  <textarea id="paragraph" placeholder="Describe Person B from A's perspective…"></textarea>
+  <button id="analyze">Analyze Bond</button>
+
+  <div class="result-card" id="result-card" style="display:none;">
+    <div><span class="label">Estimated Score (o):</span> <span id="score_o">—</span></div>
+    <div class="bar-container"><div class="bar" id="score_bar"></div></div>
+
+    <div><span class="label">Simpery / Loneliness (L):</span> <span id="L_val">—</span></div>
+    <div class="bar-container"><div class="bar" id="L_bar" style="background:linear-gradient(90deg,#c799ff,#7afcff);"></div></div>
+
+    <div><span class="label">Platonic Value (type@p):</span> <span id="type_p">—</span></div>
+    <div class="bar-container"><div class="bar" id="type_bar" style="background:linear-gradient(90deg,#7afcff,#c799ff);"></div></div>
+
+    <div><span class="label">Asymmetry Notice:</span> <span id="asymmetry">—</span></div>
+
+    <div><span class="label">Highlights / Key Phrases:</span></div>
+    <div class="highlights" id="highlights"></div>
+
+    <div><span class="label">Raw Data:</span></div>
+    <pre id="raw_data">—</pre>
+  </div>
+</div>
+
+<script type="module">
+  import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+  const paragraphEl = document.getElementById('paragraph');
+  const analyzeBtn = document.getElementById('analyze');
+  const resultCard = document.getElementById('result-card');
+  const scoreOEl = document.getElementById('score_o');
+  const LValEl = document.getElementById('L_val');
+  const typePEl = document.getElementById('type_p');
+  const asymmetryEl = document.getElementById('asymmetry');
+  const highlightsEl = document.getElementById('highlights');
+  const rawDataEl = document.getElementById('raw_data');
+  const scoreBar = document.getElementById('score_bar');
+  const LBar = document.getElementById('L_bar');
+  const typeBar = document.getElementById('type_bar');
+
+  let engine = null;
+
+  async function ensureEngine(){
+    if(engine) return;
+    engine = await webllm.CreateMLCEngine("Qwen2.5-0.5B-Instruct-q4f16_1-MLC", {
+      initProgressCallback: (info)=>console.log(info)
+    });
+  }
+
+  analyzeBtn.addEventListener('click', async ()=>{
+    const paragraph = paragraphEl.value.trim();
+    if(!paragraph) return;
+
+    await ensureEngine();
+
+    resultCard.style.display = 'block';
+    scoreOEl.textContent = '…';
+    LValEl.textContent = '…';
+    typePEl.textContent = '…';
+    asymmetryEl.textContent = '…';
+    highlightsEl.innerHTML = '';
+    rawDataEl.textContent = '…';
+    scoreBar.style.width='0%';
+    LBar.style.width='0%';
+    typeBar.style.width='0%';
+
+    const systemPrompt = `
+You are Bond Insight. The user provides a paragraph describing Person B from Person A's perspective. 
+Estimate the following:
+- score_o (-5 to 10, standardised units)
+- L (1 to 10, simpery/loneliness)
+- type_p (platonic value, real number 0 to 1)
+- asymmetry_note (if Person B's feelings differ significantly)
+- highlights (key phrases influencing score)
+
+Respond with JSON only, keys: score_o, L, type_p, asymmetry_note, highlights
+    `;
+
+    const messages = [
+      {role:'system', content: systemPrompt},
+      {role:'user', content: paragraph}
+    ];
+
+    let resultJSON = '';
+    try{
+      const stream = await engine.chat.completions.create({messages, stream:true, temperature:0.6, max_tokens:512});
+      for await (const chunk of stream){
+        resultJSON += chunk.choices?.[0]?.delta?.content ?? '';
+      }
+      const data = JSON.parse(resultJSON);
+
+      // Update UI
+      scoreOEl.textContent = data.score_o;
+      LValEl.textContent = data.L;
+      typePEl.textContent = data.type_p;
+      asymmetryEl.textContent = data.asymmetry_note;
+      highlightsEl.innerHTML = '';
+      data.highlights?.forEach(h=>{
+        const span = document.createElement('span'); span.className='highlight'; span.textContent=h;
+        highlightsEl.appendChild(span);
+      });
+      rawDataEl.textContent = JSON.stringify(data,null,2);
+
+      // Animate bars
+      scoreBar.style.width = `${Math.min(Math.max((data.score_o+5)/15*100,0),100)}%`;
+      LBar.style.width = `${Math.min(Math.max(data.L/10*100,0),100)}%`;
+      typeBar.style.width = `${Math.min(Math.max(data.type_p*100,0),100)}%`;
+
+    }catch(err){
+      console.error(err);
+      rawDataEl.textContent = 'Error parsing AI response: '+err.message;
+    }
+  });
+</script>
+
+</body>
+</html>
